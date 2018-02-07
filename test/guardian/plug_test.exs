@@ -49,6 +49,16 @@ defmodule Guardian.PlugTest do
       })
       {:ok, conn}
     end
+
+    def on_revoke(claims, token, opts) do
+      send_function_call({
+        __MODULE__,
+        :on_revoke,
+        [claims, token, opts]
+      })
+
+      {:ok, claims}
+    end
   end
 
   setup do
@@ -232,7 +242,9 @@ defmodule Guardian.PlugTest do
     end
 
     test "it calls the right things", ctx do
-      conn = ctx.conn
+      %{conn: conn,
+        bob: %{token: bob_token, claims: bob_claims}} = ctx
+
       assert %Plug.Conn{} = xconn = GPlug.sign_out(conn, ctx.impl, [key: :bob])
 
       refute xconn.private[:guardian_bob_token]
@@ -247,13 +259,17 @@ defmodule Guardian.PlugTest do
 
       assert get_session(xconn, :guardian_jane_token)
 
-      expected = [{ctx.impl, :before_sign_out, [:conn, :bob, [key: :bob]]}]
+      expected = [{ctx.impl, :before_sign_out, [:conn, :bob, [key: :bob]]},
+                  {ctx.impl, :on_revoke, [bob_claims, bob_token, [key: :bob]]}]
 
       assert gather_function_calls() == expected
     end
 
     test "is removes all users", ctx do
-      conn = ctx.conn
+      %{conn: conn,
+        bob: %{token: bob_token, claims: bob_claims},
+        jane: %{token: jane_token, claims: jane_claims}} = ctx
+
       assert %Plug.Conn{} = xconn = GPlug.sign_out(conn, ctx.impl, [])
 
       refute xconn.private[:guardian_bob_token]
@@ -270,7 +286,9 @@ defmodule Guardian.PlugTest do
 
       expected = [
         {ctx.impl, :before_sign_out, [:conn, :bob, []]},
+        {ctx.impl, :on_revoke, [bob_claims, bob_token, []]},
         {ctx.impl, :before_sign_out, [:conn, :jane, []]},
+        {ctx.impl, :on_revoke, [jane_claims, jane_token, []]},
       ]
 
       assert gather_function_calls() == expected
@@ -307,7 +325,9 @@ defmodule Guardian.PlugTest do
     end
 
     test "it calls the right things", ctx do
-      conn = ctx.conn
+      %{conn: conn,
+        bob: %{token: bob_token, claims: bob_claims}} = ctx
+
       assert %Plug.Conn{} = xconn = GPlug.sign_out(conn, ctx.impl, [key: :bob])
 
       refute xconn.private[:guardian_bob_token]
@@ -318,12 +338,18 @@ defmodule Guardian.PlugTest do
       assert xconn.private[:guardian_jane_claims]
       assert xconn.private[:guardian_jane_resource]
 
-      expected = [{Guardian.PlugTest.Impl, :before_sign_out, [:conn, :bob, [key: :bob]]}]
+      expected =
+        [{Guardian.PlugTest.Impl, :before_sign_out, [:conn, :bob, [key: :bob]]},
+         {Guardian.PlugTest.Impl, :on_revoke, [bob_claims, bob_token, [key: :bob]]}]
+
       assert gather_function_calls() == expected
     end
 
     test "is removes all users", ctx do
-      conn = ctx.conn
+      %{conn: conn,
+        bob: %{token: bob_token, claims: bob_claims},
+        jane: %{token: jane_token, claims: jane_claims}} = ctx
+
       assert %Plug.Conn{} = xconn = GPlug.sign_out(conn, ctx.impl, [])
 
       refute xconn.private[:guardian_bob_token]
@@ -336,7 +362,9 @@ defmodule Guardian.PlugTest do
 
       expected = [
         {Guardian.PlugTest.Impl, :before_sign_out, [:conn, :bob, []]},
+        {Guardian.PlugTest.Impl, :on_revoke, [bob_claims, bob_token, []]},
         {Guardian.PlugTest.Impl, :before_sign_out, [:conn, :jane, []]},
+        {Guardian.PlugTest.Impl, :on_revoke, [jane_claims, jane_token, []]}
       ]
       assert gather_function_calls() == expected
     end
